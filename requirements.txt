@@ -17,6 +17,7 @@ debugpy==1.8.0
 decorator==5.1.1
 defusedxml==0.7.1
 dill==0.3.7
+et-xmlfile==1.1.0
 exceptiongroup==1.2.0
 executing==2.0.1
 fastjsonschema==2.19.0
@@ -44,6 +45,7 @@ nbconvert==7.13.0
 nbformat==5.9.2
 nest-asyncio==1.5.8
 numpy==1.26.2
+openpyxl==3.1.2
 packaging==23.2
 pandas==2.1.4
 pandocfilters==1.5.0
@@ -81,4 +83,5 @@ tzdata==2023.3
 urllib3==2.1.0
 wcwidth==0.2.12
 webencodings==0.5.1
+XlsxWriter==3.1.9
 xyzservices==2023.10.1
