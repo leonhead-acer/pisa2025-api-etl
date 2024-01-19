@@ -21,6 +21,7 @@ et-xmlfile==1.1.0
 exceptiongroup==1.2.0
 executing==2.0.1
 fastjsonschema==2.19.0
+flatten-json==0.1.14
 folium==0.15.1
 fonttools==4.47.0
 idna==3.6
@@ -29,7 +30,9 @@ ipython==8.18.1
 isort==5.13.2
 jedi==0.19.1
 Jinja2==3.1.2
-jsonschema==4.20.0
+json_schema_generator==0.3
+jsonschema==4.21.0
+jsonschema-extractor==2.0.2
 jsonschema-specifications==2023.11.2
 jupyter_client==8.6.0
 jupyter_core==5.5.1
@@ -70,6 +73,7 @@ requests==2.31.0
 rpds-py==0.15.2
 scipy==1.11.4
 six==1.16.0
+skinfer==0.2.0
 soupsieve==2.5
 stack-data==0.6.3
 tenacity==8.2.3
