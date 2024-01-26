@@ -5,19 +5,19 @@ import psycopg2
 def create_tables(params):
     """ create tables in the PostgreSQL database"""
     commands = (
-        """
+        '''
         CREATE TABLE delivery_results (
-            delivery_execution_id CHAR NOT NULL,
-            delivery_id CHAR NOT NULL,
+            delivery_execution_id VARCHAR(100) PRIMARY KEY,
+            delivery_id character(12) NOT NULL,
             is_deleted BOOL NOT NULL,
-            last_update_date INT NOT NULL,
-            login CHAR NOT NULL,
-            test_qti_id CHAR NOT NULL,
-            test_qti_label CHAR NOT NULL,
-            test_qti_title CHAR NOT NULL,
-            raw_data CHAR NOT NULL
-        )
-        """,
+            last_update_date BIGINT NOT NULL,
+            login VARCHAR(50) NOT NULL,
+            test_qti_id VARCHAR(255) NOT NULL,
+            test_qti_label VARCHAR(255) NOT NULL,
+            test_qti_title VARCHAR(255) NOT NULL,
+            raw_data TEXT NOT NULL
+        );
+        ''',
         # """ CREATE TABLE parts (
         #         part_id SERIAL PRIMARY KEY,
         #         part_name VARCHAR(255) NOT NULL
@@ -69,9 +69,9 @@ def create_tables(params):
 def delete_tables(params):
     """ create tables in the PostgreSQL database"""
     commands = (
-        """
-        DROP TABLE delivery_results
-        """,
+        '''
+        DROP TABLE IF EXISTS "delivery_results";
+        ''',
         # """ CREATE TABLE parts (
         #         part_id SERIAL PRIMARY KEY,
         #         part_name VARCHAR(255) NOT NULL
