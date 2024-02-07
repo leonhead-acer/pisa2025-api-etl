@@ -157,6 +157,8 @@ CREATE TABLE IF NOT EXISTS oat."deliveryResults"
 
     "isDeleted" bit(1), 
 
+    "outcomes" character varying(200),
+
     "testQtiId" character varying(30) COLLATE pg_catalog."default", 
 
     "testQtiLabel" character varying(50) COLLATE pg_catalog."default", 
@@ -165,7 +167,7 @@ CREATE TABLE IF NOT EXISTS oat."deliveryResults"
 
     "insertedDate" timestamp with time zone, 
 
-    "rawData" json,
+    "raw_data" character varying (100000),
 
     CONSTRAINT "deliveryResults_pkey" PRIMARY KEY ("rowId") 
 
