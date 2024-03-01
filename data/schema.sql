@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS oat."deliveryResults"
 
 ( 
 
-     "rowId" bigint NOT NULL DEFAULT nextval('deliveryResults_rowId_seq'::regclass), 
+    "rowId" bigint NOT NULL DEFAULT nextval('deliveryResults_rowId_seq'::regclass), 
 
     "deliveryExecutionId" character varying(150) COLLATE pg_catalog."default", 
 
