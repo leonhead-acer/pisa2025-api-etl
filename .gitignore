@@ -1,2 +1,6 @@
 .venv/
 __pycache__
+config*.*
+data/
+config.yaml
+
