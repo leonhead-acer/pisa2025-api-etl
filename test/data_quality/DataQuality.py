@@ -41,7 +41,7 @@ class DataQuality:
                 continue
             for dq_rule in table["dq_rules"]:
                 expectation_obj = globals()[self.rule_mapping(dq_rule["rule_name"])]
-                expectation_instance = expectation_obj(column = "", dimension = dq_rule["rule_dimension"], add_info = dq_rule["add_info"])
+                expectation_instance = expectation_obj(column = None, dimension = dq_rule["rule_dimension"], add_info = dq_rule["add_info"])
                 expectation_instance.test(ge_df)
 
         for column in config["columns"]:
