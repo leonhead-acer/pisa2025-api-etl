@@ -38,17 +38,49 @@
 -- AND login ~ '^((?!demo).)*$'
 -- LIMIT 10;
 
-WITH tab as (
-    SELECT
-        row_id, regexp_substr(login,'\d+') login_new, test_qti_id
-    FROM oat.delivery_results
-) SELECT row_id FROM tab 
-    WHERE test_qti_id ~ '^FLA\-.*'
-    AND length(login_new) = 11
-    AND login_new ~ '(?<=^.{1})056'
-    AND login_new ~ '^[125].*'
-    AND login_new ~ '^((?!9999).)*$'
-    LIMIT 10;
+-- SELECT DISTINCT login FROM oat.delivery_results;
+
+-- TRUNCATE TABLE maple.isot_table;
+
+-- WITH tab as (
+--     SELECT
+--         login, regexp_substr(login,'\d+') username, delivery_id, raw_data -> 'sessionEndTime' ->> 0 sessionEndtime
+--     FROM oat.delivery_results
+-- ) SELECT DISTINCT login, username, delivery_id, sessionEndtime FROM tab 
+--     WHERE length(username) >= 11
+--     AND username ~ '^[125]826'
+--     LIMIT 10;
+
+-- SELECT
+--     s.delivery_execution_id, s.delivery_id, s.last_update_date, s.login,
+--     s.test_qti_id, s.test_qti_label, s.test_qti_title, s.raw_data, s.raw_data->'metadata'->>'PISA25 Languages' as language
+-- FROM oat.delivery_results as s
+-- INNER JOIN (
+--     SELECT p.username, p.login FROM maple.maple_student_post_val as p
+-- ) as p
+-- ON p.login = s.login
+-- WHERE p.login IS NOT NULL AND p.username ~ '^[125]040' AND s.test_qti_id ~ '^FLA\-.*';
+
+SELECT
+    s.delivery_execution_id, s.delivery_id, s.last_update_date, s.login,
+    s.test_qti_id, s.test_qti_label, s.test_qti_title, s.raw_data, s.raw_data->'metadata'->>'PISA25 Languages' as language
+FROM oat.delivery_results as s 
+WHERE s.login IN (
+    SELECT p.login FROM maple.maple_student_post_val as p WHERE p.username ~ '^[125]196'
+) AND s.test_qti_id ~ '^FLA\-.*';
+
+-- SELECT p.login as login, p.username as username, s.delivery_execution_id, s.delivery_id,
+--         s.test_qti_id, s.test_qti_label, s.test_qti_title, s.raw_data,
+--         s.raw_data->'metadata'->>'PISA25 Languages' as language
+-- FROM maple.maple_student_post_val as p
+-- INNER JOIN (
+--     SELECT
+--         row_id, delivery_execution_id, delivery_id, last_update_date, login,
+--         test_qti_id, test_qti_label, test_qti_title, raw_data, raw_data->'metadata'->>'PISA25 Languages' as language
+--     FROM oat.delivery_results as s
+-- ) as s
+-- ON p.login = s.login
+-- WHERE p.login IS NOT NULL AND p.username ~ '^[125]040' AND s.test_qti_id ~ '^FLA\-.*';
 
 -- SELECT
 --     login, test_qti_id, raw_data
