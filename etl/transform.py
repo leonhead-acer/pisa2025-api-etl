@@ -433,7 +433,7 @@ def cmc_item_create(df: object, cbk: object, domain: str) -> pd.DataFrame:
     return df
 
 def merge_participant_info(df: object, student_participants: object, nc_dat: object) -> pd.DataFrame:
-    stu_dat = student_participants.loc[:,['login','grade','gender','dob_mm','dob_yy','sen','mpop1','ppart1','testAttendance','questionnaireAttendance']].drop_duplicates('login',keep = 'last')
+    stu_dat = student_participants.loc[:,['login','username','grade','gender','dob_mm','dob_yy','sen','mpop1','ppart1','test_attendance','questionnaire_attendance']].drop_duplicates('login',keep = 'last')
     stu_dat['login'] = stu_dat['login'].astype(str)
     df['login'] = df['login'].astype(str)
     df1 = (

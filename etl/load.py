@@ -39,6 +39,7 @@ def make_long_file(df: object, domain: str):
             'isocntcd',
             'isoalpha3',
             'isoname',
+            'username',
             'login',
             'last_update_date',
             'domain',
@@ -72,8 +73,8 @@ def make_wide_file(df: object, cbk: object):
 
     for doml in dom_list:
         cog_vars = cbk.loc[cbk['domain'] == doml,['qtiLabel2','item_order']].sort_values(['item_order'])['qtiLabel2'].tolist()
-        long_file = df.loc[(df['domain'] == doml) & (df['in_cq'] == '1') & (df['mpop1'] == 1) & (df['qtiLabel'].isin(cog_vars)),:].assign(
-            SchID=lambda x: x['login'].astype(str).str.slice(4,8)
+        long_file = df.loc[(df['domain'] == doml) & (df['in_cq'] == '1') & (df['mpop1'] == '1') & (df['qtiLabel'].isin(cog_vars)),:].assign(
+            SchID=lambda x: x['username'].astype(str).str.slice(4,8)
         )
 
         lab_list = ['-Time','-StartT','-EndT']
@@ -82,14 +83,14 @@ def make_wide_file(df: object, cbk: object):
         for lab in lab_list:
             item_lab = 'item'+lab
             long_file[item_lab] = long_file['qtiLabel'].apply(lambda x: str(x) + lab if pd.notnull(x) else '')
-            time_file = long_file.loc[long_file[item_lab]!='',:].pivot(index = ['login'],columns = [item_lab],values = ['item_dur'])
+            time_file = long_file.loc[long_file[item_lab]!='',:].pivot(index = ['username'],columns = [item_lab],values = ['item_dur'])
             dat_list.append(time_file)
 
         time_file_final = pd.concat(dat_list,axis = 1).reset_index()
         time_file_final.columns = [' '.join(col).strip().replace("item_dur ","") for col in time_file_final.columns.values]
         time_file_final = time_file_final.rename(
             columns = {
-                'login': 'StdID',
+                'username': 'StdID',
             }
         )
 
@@ -101,9 +102,9 @@ def make_wide_file(df: object, cbk: object):
 
             wide_file = long_file.pivot(
                 index = [
-                    'isocntcd', 'isoalpha3', 'isoname', 'SchID','login',
+                    'isocntcd', 'isoalpha3', 'isoname', 'SchID','username',
                     'grade', 'dob_mm', 'dob_yy','gender', 'sen', 'language','mpop1', 'ppart1',
-                    'testAttendance', 'questionnaireAttendance',
+                    'test_attendance', 'questionnaire_attendance',
                     'session_dur','sessionEndTime'
                 ],
                 columns = ['qtiLabel'],
@@ -120,7 +121,7 @@ def make_wide_file(df: object, cbk: object):
                     'sen': 'SEN',
                     'language': 'TestLang',
                     'gender': 'GenderSTF',
-                    'login': 'StdID',
+                    'username': 'StdID',
                     'sessionEndTime': 'TestDate',
                     'session_dur': 'TotSessionTime'
                 }
@@ -133,6 +134,6 @@ def make_wide_file(df: object, cbk: object):
                 how = 'left'
             )
 
-            wide_file.loc[wide_file['mpop1'] == 1,:].to_csv(
+            wide_file.loc[wide_file['mpop1'] == '1',:].to_csv(
                 f'P:\\VM Backup\\251003 PISA FT T6a\\Output\\For Task 6b\\CQ {doml} wide {datt} [in progress]_{datetime.date.today().strftime('%Y%m%d')}.csv',index = False
             )
