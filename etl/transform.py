@@ -54,7 +54,7 @@ def json_to_pd (filepath: str) -> pd.DataFrame:
 
 # Extract 'raw_data' from json
 
-def explode_raw_data (df: object,nc_dat: object) -> pd.DataFrame:
+def explode_raw_data (df: object) -> pd.DataFrame:
     
     json_dat = pd.json_normalize(df['raw_data'],max_level = 0)
     
@@ -432,25 +432,14 @@ def cmc_item_create(df: object, cbk: object, domain: str) -> pd.DataFrame:
 
     return df
 
-def merge_participant_info(df: object, student_participants: object, nc_dat: object) -> pd.DataFrame:
-    stu_dat = student_participants.loc[:,['login','username','grade','gender','dob_mm','dob_yy','sen','mpop1','ppart1','test_attendance','questionnaire_attendance']].drop_duplicates('login',keep = 'last')
+def merge_participant_info(df: object, student_participants: object) -> pd.DataFrame:
+    stu_dat = student_participants.loc[~pd.isnull(student_participants['login']),['login','username','grade','gender','dob_mm','dob_yy','sen','mpop1','ppart1','isoalpha3','isoname','isocntcd','test_attendance','questionnaire_attendance']].drop_duplicates('login',keep = 'last')
     stu_dat['login'] = stu_dat['login'].astype(str)
     df['login'] = df['login'].astype(str)
-    df1 = (
-        df
-        .assign(
-            isocntcd=lambda x: x['login'].astype(str).str.slice(1,4)
-        )
-        .merge(
-            nc_dat.loc[:,['isocntcd','isoalpha3','isoname']],
-            how = 'left',
-            on = 'isocntcd'
-        )
-        .merge(
-            stu_dat,
-            how = 'left',
-            on = 'login'
-        )
+    df1 = df.merge(
+        stu_dat,
+        how = 'left',
+        on = 'login'
     )
 
     return df1
@@ -469,3 +458,93 @@ def read_json_file(filepath: str) -> pd.DataFrame:
     finally:
         df['language'] = df['language'].apply(lambda x: x.rsplit('/', 1)[-1])
         return df
+    
+def sql_query_ge(nc_dat: object,cbk: object,con) -> pd.DataFrame:
+    
+    con.autocommit = True
+    cur = con.cursor()
+
+    print("Extracting SQL query checks...")
+
+    domain = 'FLA'
+    if(domain == 'SCI'):
+        regex_dom = '^(S\\d|SA1).*'
+    elif(domain == 'FLA'):
+        regex_dom = '^FLA\\-.*'
+
+    cnt_code = nc_dat['isocntcd']
+    process = nc_dat['process']
+
+    if(process == 'post' or process == 'now'):
+
+        fetch_query = f"""
+            SELECT
+                b.login,
+                b.itemId,
+                b.unit_id,
+                jsonb_object_keys(b.responses) as resp_cat
+            FROM (
+                SELECT
+                    t.login, t.itemId,
+                    t.raw_data->'items'->itemId->>'qtiLabel' as unit_id,
+                    t.raw_data->'items'->itemId->'responses' as responses
+                FROM (
+                    SELECT 
+                        login,
+                        regexp_substr(login,'\d+') as username,
+                        raw_data,
+                        test_qti_id,
+                        jsonb_object_keys(raw_data->'items') as itemId
+                    FROM oat.delivery_results
+                    WHERE test_qti_id ~ '{regex_dom}'
+                ) AS t
+                WHERE t.username ~ '^[125]{cnt_code}'
+            ) AS b
+            WHERE jsonb_typeof(b.responses) = 'object'
+            AND b.login IN (
+                SELECT p.login FROM maple.maple_student_post_val as p WHERE p.username ~ '^[125]{cnt_code}'
+            );
+            """
+    else:
+        fetch_query = f"""
+            SELECT
+                b.login,
+                b.itemId,
+                b.unit_id,
+                jsonb_object_keys(b.responses) as resp_cat
+            FROM (
+                SELECT
+                    t.login, t.itemId,
+                    t.raw_data->'items'->itemId->>'qtiLabel' as unit_id,
+                    t.raw_data->'items'->itemId->'responses' as responses
+                FROM (
+                    SELECT 
+                        login,
+                        regexp_substr(login,'\d+') as username,
+                        raw_data,
+                        test_qti_id,
+                        jsonb_object_keys(raw_data->'items') as itemId
+                    FROM oat.delivery_results
+                    WHERE test_qti_id ~ '{regex_dom}'
+                ) AS t
+                WHERE t.username ~ '^[125]{cnt_code}'
+            ) AS b
+            WHERE jsonb_typeof(b.responses) = 'object'
+            AND b.login ~ '^((?!9999).)*$'
+            AND b.login ~ '^((?!demo).)*$';
+            """
+        
+    cur.execute(fetch_query)
+
+    tmp = pd.DataFrame.from_records(cur.fetchall())
+    
+    df = tmp.merge(
+        cbk.loc[:,['unit_id','resp_cat','qtiLabel2']].drop_duplicates(),
+        on = ['unit_id','resp_cat'],
+        how = 'left'
+    )
+    df = df.loc[~pd.isnull(df['qtiLabel2'])].rename(columns = {'qtiLabel2':'qtiLabel'}).assign(source='match')
+
+    con.close()
+
+    return df

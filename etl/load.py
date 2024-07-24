@@ -134,6 +134,8 @@ def make_wide_file(df: object, cbk: object):
                 how = 'left'
             )
 
-            wide_file.loc[wide_file['mpop1'] == '1',:].to_csv(
+            inscope = ((~wide_file['ppart1'].isin(['0','2','3','4','5','9'])) & (wide_file['mpop1'].eq('1')))
+            wide_file.loc[inscope,:].to_csv(
                 f'P:\\VM Backup\\251003 PISA FT T6a\\Output\\For Task 6b\\CQ {doml} wide {datt} [in progress]_{datetime.date.today().strftime('%Y%m%d')}.csv',index = False
             )
+            

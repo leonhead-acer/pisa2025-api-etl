@@ -34,7 +34,7 @@ def extract_country_codes(filepath: str) -> pd.DataFrame:
         # Read the CSV file and store it in a dataframe
         df = pd.read_excel(filepath).astype({'isocntcd': str})
         df['isocntcd'] = df['isocntcd'].apply(lambda x: x.zfill(3))
-        df = df.loc[:,['isocntcd','isoalpha3','isoname']].drop_duplicates(subset = ['isocntcd'],keep = 'first')
+        df = df.loc[:,['isocntcd','isoalpha3','isoname']].drop_duplicates(subset = ['isocntcd'],keep = 'last')
 
     # Handle exception if any of the files are missing
     except FileNotFoundError as e:

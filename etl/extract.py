@@ -46,7 +46,7 @@ def postgresql_conn(**kwargs):
     return con
 
 def extract_json(domain: str, nc_dat: object, overwrite: bool, con):
-
+    con.autocommit = True
     cur = con.cursor()
 
     print("Connection to DB established, searching for new records...")
@@ -59,6 +59,8 @@ def extract_json(domain: str, nc_dat: object, overwrite: bool, con):
 
     cnt_name = nc_dat['isoalpha3']
     cnt_code = nc_dat['isocntcd']
+    process = nc_dat['process']
+    
     json_file_path = Path(f"./data/db/{domain.lower()}/{domain}_{cnt_name}.json")
     json_file_exists = Path(json_file_path).is_file()
     make_file = (overwrite or not json_file_exists)
@@ -66,22 +68,41 @@ def extract_json(domain: str, nc_dat: object, overwrite: bool, con):
     if make_file:
 
         # fetch_query = fetch_query_create(domain,cnt_code)
-        fetch_query = f"""
-            SELECT
-                row_id, delivery_execution_id, delivery_id, last_update_date, login,
-                test_qti_id, test_qti_label, test_qti_title, raw_data,
-                raw_data->'metadata'->>'PISA25 Languages' as language
-            FROM oat.delivery_results
-            WHERE test_qti_id ~ '{regex_dom}'
-            AND login ~ '(?<=^.{{1}}){str(cnt_code)}'
-            AND login ~ '^[125].*'
-            AND login ~ '^((?!9999).)*$'
-            AND login ~ '^((?!demo).)*$';
-            """
-
-        cur.execute(fetch_query)
-        if(cur.fetchone() is not None):
+        if(process == 'post' or process == 'now'):
+            
+            cur.execute(
+                f"""
+                SELECT
+                    s.delivery_execution_id, s.delivery_id, s.last_update_date, s.login,
+                    s.test_qti_id, s.test_qti_label, s.test_qti_title, s.raw_data,
+                    s.raw_data->'metadata'->>'PISA25 Languages' as language
+                FROM oat.delivery_results as s 
+                WHERE s.login IN (
+                    SELECT p.login FROM maple.maple_student_post_val as p WHERE p.username ~ '^[125]{cnt_code}'
+                ) AND s.test_qti_id ~ '^FLA\\-.*';
+                """
+            )
             df = pd.DataFrame.from_records(cur.fetchall())
+
+        else:
+
+            cur.execute(
+                f"""
+                SELECT
+                    delivery_execution_id, delivery_id, last_update_date, login,
+                    test_qti_id, test_qti_label, test_qti_title, raw_data,
+                    raw_data->'metadata'->>'PISA25 Languages' as language
+                FROM oat.delivery_results
+                WHERE test_qti_id ~ '{regex_dom}'
+                AND login ~ '(?<=^.{{1}}){cnt_code}'
+                AND login ~ '^[125].*'
+                AND login ~ '^((?!9999).)*$'
+                AND login ~ '^((?!demo).)*$';
+                """
+            )
+            df = pd.DataFrame.from_records(cur.fetchall())
+        
+        if(df.shape[0] > 0):
             df.to_json(f"./data/db/{domain.lower()}/{domain}_{cnt_name}.json")
             print(f"JSON file created for {cnt_name}")
 
