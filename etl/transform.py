@@ -378,15 +378,16 @@ def score_resp_recode(df: object, domain: str) -> pd.DataFrame:
 
 def trailing_missing(df: object, cbk: object) -> pd.DataFrame:
     dom_list = cbk.domain.unique().tolist()
-    r_index_list = []
+    r_tab_list = []
 
     for doml in dom_list:
 
-        test = df.loc[(df['in_cq'] == '1') & (df['cq_cat'].notna()) & (~df['cq_cat'].str.startswith('t|u',na = False)) & (df['domain'] == doml),['login','cq_cat','itemEndTime']].sort_values(['itemEndTime'])
+        test = df.loc[(df['in_cq'] == '1') & (pd.notnull(df['cq_cat'])) & (~df['cq_cat'].isin(['t','u'])) & (df['domain'] == doml),['login','qtiLabel','cq_cat','itemEndTime']].sort_values(['itemEndTime'])
         log_list = test.login.unique()
 
         for l in log_list:
             test_log = test.loc[(test['login'] == l),:]
+
             var_grpd = test_log.groupby(['login'])['cq_cat']
             test_log['tmp'] = (var_grpd.shift(0) != var_grpd.shift(1)).cumsum()
 
@@ -397,16 +398,29 @@ def trailing_missing(df: object, cbk: object) -> pd.DataFrame:
                 last_grp = test_log.tail(1).tmp.iloc[0]
                 nine_tab = test_log.loc[test_log['tmp']==last_grp,:]
                 if(nine_tab.shape[0]>1):
-                    r_tab = nine_tab.iloc[1:]
-                    r_indexes = r_tab.index.to_list()
-                    r_index_list.extend(r_indexes)
+                    r_tab = nine_tab.iloc[1:].assign(cq_cat_new = 'r')
+                    r_tab = r_tab.loc[:,['login','qtiLabel','cq_cat_new']]
+                    r_tab_list.append(r_tab)
                 else:
                     continue
 
-    if(len(r_index_list) > 0):
-        df.loc[df.index[r_index_list],['cq_cat','cq_score','score_code']] = 'r'
+    if(len(r_tab_list) > 0):
+        r_tab_new = pd.concat(r_tab_list,axis = 0)
 
-    return df
+        df1 = df.merge(
+            r_tab_new,
+            how = 'left',
+            on = ['login','qtiLabel']
+        )
+
+        df1['cq_cat_new'] = np.where(pd.notnull(df1['cq_cat_new']),df1['cq_cat_new'],df1['cq_cat'])
+        df1 = df1.drop(columns=['cq_cat']).rename({'cq_cat_new':'cq_cat'},axis = 1)
+        df1['cq_score'] = np.where(df1['cq_cat'].eq('r'),'r',df1['cq_score'])
+        df1['score_code'] = np.where(df1['cq_cat'].eq('r'),'r',df1['score_code'])
+    else:
+        df1 = df
+
+    return df1
 
 def cmc_item_create(df: object, cbk: object, domain: str) -> pd.DataFrame:
 
@@ -441,6 +455,10 @@ def merge_participant_info(df: object, student_participants: object) -> pd.DataF
         how = 'left',
         on = 'login'
     )
+
+    df1['ppart1'] = df1['ppart1'].astype(str).apply(lambda x: re.sub(".0","",x)).replace('nan','')
+    df1['mpop1'] = df1['mpop1'].astype(str).apply(lambda x: re.sub(".0","",x)).replace('nan','')
+    df1['mpop1'] = df1['mpop1'].astype(str)
 
     return df1
 
