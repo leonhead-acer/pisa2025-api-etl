@@ -34,7 +34,8 @@ def load_data(df: object, create_PSQL: str, insert_PSQL: str) -> object:
 
 def make_long_file(df: object, domain: str):
     df.loc[
-        (df['in_cq']=='1'),
+        # (df['in_cq']=='1'),
+        :,
         [
             'isocntcd',
             'isoalpha3',
@@ -64,15 +65,21 @@ def make_long_file(df: object, domain: str):
             'db_resp',
             'score_code',
             'cq_cat',
-            'cq_score'
+            'cq_score',
+            'in_cq'
         ]
     ].to_csv(f'P:\\VM Backup\\251003 PISA FT T6a\\Output\\For Task 6b\\CQ {domain} long [in progress]_{datetime.date.today().strftime('%Y%m%d')}.csv',index = False)
 
-def make_wide_file(df: object, cbk: object):
+def make_wide_file(df: object, cbk: object, domain: str):
     dom_list = cbk.domain.unique().tolist()
+    if(domain == 'FLA'):
+        dom_list.append('FLA-S')
 
     for doml in dom_list:
-        cog_vars = cbk.loc[cbk['domain'] == doml,['qtiLabel2','item_order']].sort_values(['item_order'])['qtiLabel2'].tolist()
+        if (doml == 'FLA-S'):
+            cog_vars = list(df.loc[(df['domain'] == 'FLA-S') & (df['in_cq'] == '1'),:].qtiLabel.unique())
+        else:
+            cog_vars = cbk.loc[cbk['domain'] == doml,['qtiLabel2','item_order']].sort_values(['item_order'])['qtiLabel2'].tolist()
         long_file = df.loc[(df['domain'] == doml) & (df['in_cq'] == '1') & (df['mpop1'] == '1') & (df['qtiLabel'].isin(cog_vars)),:].assign(
             SchID=lambda x: x['username'].astype(str).str.slice(4,8)
         )

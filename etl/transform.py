@@ -4,6 +4,7 @@ pd.options.mode.chained_assignment = None
 import re
 import numpy as np
 import datetime
+import json
 
 # Transform Crash Data
 def transform_crash_data(crashes_df):
@@ -246,6 +247,66 @@ def gap_recode(df: object, cbk: object) -> pd.DataFrame:
 
     del df
     df = df_tmp
+    print(f"Total new rows: {df.shape[0]}")
+    print(f"Estimate of new rows: {(tmp1.shape[0]*5) + tmp2.shape[0]}")
+
+    return df
+
+def rmmb_to_dict(x):
+    qti_all = ['FLARMMB200101', 'FLARMMB200102', 'FLARMMB200103', 'FLARMMB200104',
+        'FLARMMB200105', 'FLARMMB200106','FLARMMB200107', 'FLARMMB200108', 'FLARMMB200109',
+        'FLARMMB200110']
+
+    resp_all = ['RESPONSE']
+    for i in range(0,9):
+        resp_all.append('RESPONSE_' + str(i+1))
+
+    dict_resp = dict(zip(qti_all,resp_all))
+
+    string = pd.Series([pd.DataFrame(j) for j in json.loads(x)][2].base[0]).to_dict()
+
+    for qti in qti_all:
+        if qti not in string.keys():
+            string[qti] = np.NaN
+
+    string = dict((dict_resp[key],value) for (key, value) in string.items())
+
+    df = pd.DataFrame(pd.Series(string)).reset_index()
+    df.columns = ['resp_cat','db_resp']
+    return(df)
+
+def rmmb_recode(df: object, cbk: object) -> pd.DataFrame:
+
+    new_vars = cbk.loc[cbk['qtiLabel2'].str.startswith("RMMB2",na=False),:].unit_id.unique()
+
+    split_exp = (df['unit_id'].str.contains("|".join(new_vars),na = False)) & (df['db_resp'].str.contains("string"))
+    split_keep = (~df['unit_id'].str.contains("|".join(new_vars),na = False))
+
+    if(any(split_exp)):
+        tmp1 = df[split_exp]
+        tmp2 = df[split_keep]
+
+        tmp1['db_resp'] = tmp1['db_resp'].fillna('[]')
+        x = tmp1['db_resp'].apply(rmmb_to_dict).tolist()
+        index = tmp1.index.values.tolist()
+        x_concat = pd.concat(x,axis = 0,keys = index,names = ['joinindex','indindex']).reset_index(level = 1,drop = True)
+        tmp1.index.name = 'joinindex'
+        tmp4 = tmp1.drop(columns = ['resp_cat','db_resp']).join(x_concat).reset_index()
+
+        df_tmp = pd.concat(
+            [
+                tmp2,
+                tmp4
+            ],
+            axis = 0
+        ).reset_index().drop(columns = ['joinindex'])
+
+        del df
+        df = df_tmp
+        print(f"Total new rows: {df.shape[0]}")
+        print(f"Estimate of new rows: {(tmp1.shape[0]*10) + tmp2.shape[0]}")
+    else:
+        df = df[split_keep]
 
     return df
 
@@ -270,8 +331,7 @@ def cbk_long_f(cbk: object, domain: str) -> pd.DataFrame:
 
     return cbk_long
 
-def merge_cbk_status(df: object, cbk: object, domain: str) -> pd.DataFrame:
-
+def merge_cbk_status(df: object, cbk: object, domain: str, ams_data: object) -> pd.DataFrame:
     if(domain == 'FLA'):
         on_vars = ['unit_id','resp_cat','db_resp']
         sel_vars = ['unit_id','resp_cat','db_resp','cq_cat']
@@ -281,6 +341,14 @@ def merge_cbk_status(df: object, cbk: object, domain: str) -> pd.DataFrame:
 
     cbk_long = cbk_long_f(cbk = cbk, domain = domain)
     cbk_merge = cbk_long.loc[pd.notnull(cbk_long['db_resp']),sel_vars]
+
+    speak = (df['itemId'].str.contains(r"FLAS"))
+
+    df_S = df[speak].drop(columns = ['unit_id','index'])
+    df = df[~speak]
+    
+    df_S = df_S.iloc[:,0:6].drop_duplicates(keep = 'first')
+    df_S['login'] = df_S['login'].astype(str)
 
     df1 = pd.merge(
         df,
@@ -298,10 +366,98 @@ def merge_cbk_status(df: object, cbk: object, domain: str) -> pd.DataFrame:
         how = 'left'
     )
 
+    ams_data_merge = ams_data.loc[ams_data['login'].isin(list(df_S.login))].drop_duplicates(subset = ['login','unit_id'],keep = 'last')
+    ams_data_merge['db_key'] = ams_data_merge['db_resp']
+
+    qti_labels = pd.DataFrame(
+        {
+            'resp_cat': [
+                "Part1Ver1",
+                "Part1Ver2",
+                "Part1Ver3",
+                "Part1Ver4",
+                "Part1Ver5",
+                "Part2Ver1",
+                "Part2Ver2",
+                "Part2Ver3",
+                "Part2Ver4",
+                "Part2Ver5",
+                "Part3Ver1",
+                "Part3Ver2",
+                "Part3Ver3",
+                "Part3Ver4",
+                "Part3Ver5",
+                "Part4Ver1",
+                "Part4Ver2",
+                "Part4Ver3",
+                "Part4Ver4",
+                "Part4Ver5"
+            ],
+            'qtiLabel': [
+                "FLAS101",
+                "FLAS102",
+                "FLAS103",
+                "FLAS104",
+                "FLAS105",
+                "FLAS201",
+                "FLAS202",
+                "FLAS203",
+                "FLAS204",
+                "FLAS205",
+                "FLAS301",
+                "FLAS302",
+                "FLAS303",
+                "FLAS304",
+                "FLAS305",
+                "FLAS401",
+                "FLAS402",
+                "FLAS403",
+                "FLAS404",
+                "FLAS405",
+            ]
+        }
+    )
+
+    qti_lookup = pd.read_excel('./data/FLA test assembly list 30042024.xlsx',sheet_name='Speaking 1')
+    qti_lookup = qti_lookup.melt(
+        id_vars = 'form',
+        value_vars= ['part1','part2','part3','part4']
+    ).rename(columns = {'variable':'unit_id','value':'resp_cat'}).merge(
+        qti_labels,
+        how = 'left',
+        on = ['resp_cat']
+    )
+    qti_lookup['testQtiLabel'] = qti_lookup['form'].apply(lambda x: "FLA-S-" + str(int(x[-2:])))
+
+    qti_lookup['unit_id'] = qti_lookup['unit_id'].apply(lambda x: re.sub('part','FLA25SP',x))
+
+    df_S = pd.merge(
+        df_S,
+        ams_data_merge,
+        how = 'left',
+        on = 'login'
+    )
+
+    rows_after_merge = df_S.shape[0]
+    
+    df_S = df_S.merge(
+        qti_lookup.drop(columns = ['form']),
+        how = 'left',
+        on = ['unit_id','testQtiLabel']
+    ).assign(cbk_status = 'present',domain = 'FLA-S').rename(columns = {"qtiLabel": "qtiLabel2"})
+    df_S['in_cq'] = df_S['qtiLabel2'].apply(lambda x: '1' if pd.notnull(x) else '0')
+
     df2['cbk_status'] = df2['cbk_status'].fillna('stimulus')
     df2['in_cq'] = np.select([(df2['dup_std_item'] == '') & (df2['cbk_status'] == 'present')],'1',default = '0')
 
-    return df2
+    df3 = pd.concat(
+        [df2,df_S],
+        axis = 0
+    )
+    
+    print(f"Expected rows: {df.shape[0] + rows_after_merge}")
+    print(f"Actual rows: {df3.shape[0]}")
+    return df3
 
 def unix_time_millis(dt):
     epoch = datetime.datetime.utcfromtimestamp(0)
@@ -312,7 +468,7 @@ def unix_time_string(num: int):
   return x
 
 def time_var_recode(df: object) -> pd.DataFrame:
-    df['session_dur'] = df.apply(lambda x: None if (np.isnan(x['sessionEndTime']) | np.isnan(x['sessionStartTime'])) else (int(x['sessionEndTime']) - int(x['sessionStartTime'])),axis = 1)
+    df['session_dur'] = df.apply(lambda x: None if (pd.isnull(x['sessionEndTime']) | pd.isnull(x['sessionStartTime'])) else (int(x['sessionEndTime']) - int(x['sessionStartTime'])),axis = 1)
     df['item_dur'] = df.apply(lambda x: None if (pd.isnull(x['itemEndTime']) | pd.isnull(x['itemStartTime'])) else (int(x['itemEndTime']) - int(x['itemStartTime'])),axis = 1)
 
     time_vars = [
@@ -343,8 +499,8 @@ def score_resp_recode(df: object, domain: str) -> pd.DataFrame:
     df['db_score_code'] = np.select(conditions,choices,None)
 
     conditions = [
-        (df['item_completionStatus'].eq('not_attempted')) & (df['statusCorrect'].eq('skipped')) & (df['session_dur'] == 0),
-        (df['item_completionStatus'].eq('unknown') | df['item_completionStatus'].eq('completed')) & df['statusCorrect'].eq('skipped'),
+        (df['item_completionStatus'].eq('not_attempted')) & (df['statusCorrect'].eq('skipped')),
+        (df['item_completionStatus'].eq('unknown') | df['item_completionStatus'].eq('completed')) & (df['statusCorrect'].eq('skipped')) & (df['item_dur'].eq(0)),
         (df['session_dur'].notna() & df['session_dur'] < 0) | (df['item_dur'].notna() & df['item_dur'] < 0),
         df['db_score_code'].eq('9')
     ]
@@ -370,6 +526,26 @@ def score_resp_recode(df: object, domain: str) -> pd.DataFrame:
 
     df['cq_score'] = df['score_code']
 
+    speak_recode_dict = {
+        "0" : "A",
+        "0.5" : "B",
+        "1" : "C",
+        "1.5" : "D",
+        "2" : "E",
+        "2.5" : "F",
+        "3" : "G",
+        "3.5" : "H",
+        "4" : "I",
+        "4.5" : "J",
+        "5" : "K",
+        "5.5" : "L",
+        "6" : "M",
+    }
+
+    df['db_score_code'] = np.where((df['testQtiLabel'].str.contains('FLA\\-S')),df['db_resp'].replace(speak_recode_dict),df['db_score_code'])
+    df['score_code'] = np.where((df['testQtiLabel'].str.contains('FLA\\-S')),df['db_resp'].replace(speak_recode_dict),df['score_code'])
+    df['cq_cat'] = np.where((df['testQtiLabel'].str.contains('FLA\\-S')),df['db_resp'].replace(speak_recode_dict),df['cq_cat'])
+
     if(domain == 'FLA'):
         df.rename(columns = {'qtiLabel': 'qtiLabelRemove','qtiLabel2': 'qtiLabel'},inplace=True)
         df.drop(columns = ['qtiLabelRemove'],inplace=True)
@@ -382,14 +558,15 @@ def trailing_missing(df: object, cbk: object) -> pd.DataFrame:
 
     for doml in dom_list:
 
-        test = df.loc[(df['in_cq'] == '1') & (pd.notnull(df['cq_cat'])) & (~df['cq_cat'].isin(['t','u'])) & (df['domain'] == doml),['login','qtiLabel','cq_cat','itemEndTime']].sort_values(['itemEndTime'])
+        test = df.loc[(df['in_cq'] == '1') & (pd.notnull(df['cq_cat'])) & (~df['cq_cat'].isin(['t','u'])) & (df['domain'] == doml),['login','qtiLabel','cq_cat','itemEndTime','item_order']].sort_values(['itemEndTime','item_order'])
         log_list = test.login.unique()
 
         for l in log_list:
-            test_log = test.loc[(test['login'] == l),:]
+            test_log = test.loc[(test['login'] == l),:].astype('string')
 
             var_grpd = test_log.groupby(['login'])['cq_cat']
             test_log['tmp'] = (var_grpd.shift(0) != var_grpd.shift(1)).cumsum()
+            test_log['tmp'] = test_log['tmp'].fillna(0)
 
             last_val = test_log.tail(1).cq_cat.iloc[0]
             if(last_val != '9'):
@@ -407,6 +584,8 @@ def trailing_missing(df: object, cbk: object) -> pd.DataFrame:
     if(len(r_tab_list) > 0):
         r_tab_new = pd.concat(r_tab_list,axis = 0)
 
+        df['login'] = df['login'].astype('string')
+
         df1 = df.merge(
             r_tab_new,
             how = 'left',
@@ -423,6 +602,8 @@ def trailing_missing(df: object, cbk: object) -> pd.DataFrame:
     return df1
 
 def cmc_item_create(df: object, cbk: object, domain: str) -> pd.DataFrame:
+
+    orig_row = df.shape[0]
 
     if(domain == 'FLA'):
         summ_tab = cbk.loc[(cbk['qtiLabel2'].str.endswith('T',na = False)) & (cbk['item_type'] == 'CMC'),['qtiLabel2','unit_id','domain']]
@@ -444,6 +625,9 @@ def cmc_item_create(df: object, cbk: object, domain: str) -> pd.DataFrame:
         summ_tab_all = pd.concat(summ_tab_list,axis = 0)
         df = pd.concat([df,summ_tab_all],axis = 0)
 
+    print(f"Expected rows: {orig_row + summ_tab_all.shape[0]}")
+    print(f"Actual rows: {df.shape[0]}")
+
     return df
 
 def merge_participant_info(df: object, student_participants: object) -> pd.DataFrame:
@@ -459,6 +643,9 @@ def merge_participant_info(df: object, student_participants: object) -> pd.DataF
     df1['ppart1'] = df1['ppart1'].astype(str).apply(lambda x: re.sub(".0","",x)).replace('nan','')
     df1['mpop1'] = df1['mpop1'].astype(str).apply(lambda x: re.sub(".0","",x)).replace('nan','')
     df1['mpop1'] = df1['mpop1'].astype(str)
+
+    print(f"Expected rows: {df.shape[0]}")
+    print(f"Actual rows: {df1.shape[0]}")
 
     return df1
 

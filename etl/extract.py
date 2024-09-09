@@ -60,9 +60,13 @@ def extract_json(domain: str, nc_dat: object, overwrite: bool, con):
     cnt_name = nc_dat['isoalpha3']
     cnt_code = nc_dat['isocntcd']
     process = nc_dat['process']
+
+    sub_fold = 'pre' if process == 'pre' else 'post'
     
-    json_file_path = Path(f"./data/db/{domain.lower()}/{domain}_{cnt_name}.json")
+    json_file_path = Path(f"./data/db/{domain.lower()}/{sub_fold}/{domain}_{cnt_name}.json")
     json_file_exists = Path(json_file_path).is_file()
+    if(json_file_exists and overwrite and sub_fold == 'post'):
+        overwrite = False
     make_file = (overwrite or not json_file_exists)
 
     if make_file:
@@ -103,7 +107,7 @@ def extract_json(domain: str, nc_dat: object, overwrite: bool, con):
             df = pd.DataFrame.from_records(cur.fetchall())
         
         if(df.shape[0] > 0):
-            df.to_json(f"./data/db/{domain.lower()}/{domain}_{cnt_name}.json")
+            df.to_json(json_file_path)
             print(f"JSON file created for {cnt_name}")
 
     con.close()
