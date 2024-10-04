@@ -147,10 +147,10 @@
 -- ) AS r
 -- LIMIT 1000;
 
-SELECT *
-FROM oat.delivery_results
-WHERE login ~ '^1116'
-LIMIT 10;
+-- SELECT *
+-- FROM oat.delivery_results
+-- WHERE login ~ '^1116'
+-- LIMIT 10;
 
 -- SELECT x.login,x.itemId,x.unit_id,
 --   x.resp_cat,
@@ -245,13 +245,48 @@ LIMIT 10;
 -- WHERE p.login IS NOT NULL AND p.username ~ '^[125]040' AND s.test_qti_id ~ '^FLA\-.*';
 
 -- SELECT
---     login, test_qti_id, raw_data
--- FROM oat.delivery_results
--- WHERE test_qti_id ~ '^FLA.*'
--- AND login ~ '(?<=^.{1})056'
--- AND login ~ '^[125].*'
--- AND login ~ '^((?!9999).)*$'
--- AND login ~ '^((?!demo).)*$';
+--     z.login,
+--     z.username,
+--     z.test_qti_id,
+--     z.item_id,
+--     NULLIF(
+--         string_agg(
+--             (regexp_match(z.value, 'audio.*'))[1],
+--             ', '
+--         ),
+--         ''
+--     ) AS audio_filename
+-- FROM (
+--     select
+--         r.login,
+--         r.username,
+--         r.test_qti_id,
+--         r.item_id,
+--         r.response,
+--         r.raw_data->'items'->r.itemId->'responses'->r.response->>'value' AS value
+--     FROM (
+--         SELECT
+--             *,
+--             t.raw_data->'items'->itemId->>'qtiLabel' as item_id,
+--             jsonb_object_keys(t.raw_data->'items'->itemId->'responses') as response
+--         FROM (
+--             SELECT 
+--                 login,
+--                 regexp_substr(login,'\d+') as username,
+--                 raw_data,
+--                 test_qti_id,
+--                 jsonb_object_keys(raw_data->'items') as itemId
+--             FROM oat.delivery_results
+--             WHERE test_qti_id ~ '^FLA\-S.*'
+--         ) AS t
+--     ) as r
+--     WHERE r.item_id ~ '^FLAS'
+-- ) as z
+-- GROUP BY
+--     z.login,
+--     z.username,
+--     z.test_qti_id,
+--     z.item_id;
 
 -- SELECT login, test_qti_id, raw_data
 -- FROM oat.delivery_results
@@ -301,12 +336,25 @@ LIMIT 10;
 -- ) as r) as u
 -- GROUP BY part;
 
--- SELECT
---     qtilabel, cq_cat, COUNT(*)
+-- SELECT *
 -- FROM (
---     SELECT student_login as login, regexp_substr(student_login,'\d+') as username, item_code as qtiLabel,criteria_1 as cq_cat
---     FROM "mv_pisa_single_results"
---     WHERE item_code ~ '^FLA'
--- ) AS t
--- WHERE t.username ~ '^1724'
--- group by qtilabel, cq_cat;
+--     SELECT
+--         username, qtiLabel, COUNT(*)
+--     FROM (
+--         SELECT student_login as login, regexp_substr(student_login,'\d+') as username, item_code as qtiLabel
+--         FROM "mv_pisa_single_results"
+--         WHERE item_code ~ '^FLA'
+--     ) AS t
+--     group by username, qtiLabel
+-- ) as r
+-- WHERE r.count > 1;
+
+-- SELECT * FROM oat.delivery_results WHERE login = '1214A9999158';
+
+
+-- SELECT t.login, t.test_qti_id as testQtilabel, regexp_substr(t.uri,'(?<=test-assembly\-).*?(?=\-)') as test_form
+-- FROM (
+--     SELECT login, test_qti_id, raw_data->'ltiParameters'->>'spec_lti_claim_target_link_uri' as uri
+--     FROM oat.delivery_results
+--     WHERE test_qti_id ~ '^FLA-'
+-- ) as t;
