@@ -552,8 +552,8 @@ def score_resp_recode(df: object, domain: str) -> pd.DataFrame:
 
     return df
 
-def trailing_missing(df: object, cbk: object) -> pd.DataFrame:
-    dom_list = cbk.domain.unique().tolist()
+def trailing_missing(df: object) -> pd.DataFrame:
+    dom_list = df.domain.unique().tolist()
     r_tab_list = []
 
     for doml in dom_list:
@@ -568,9 +568,15 @@ def trailing_missing(df: object, cbk: object) -> pd.DataFrame:
             test_log['tmp'] = (var_grpd.shift(0) != var_grpd.shift(1)).cumsum()
             test_log['tmp'] = test_log['tmp'].fillna(0)
 
+            speak_incomplete = (test_log.shape[0] != 4) and (doml == 'FLA-S')
+
             last_val = test_log.tail(1).cq_cat.iloc[0]
-            if(last_val != '9'):
+            if((last_val != '9') or (speak_incomplete)):
                 continue
+            elif(all(test_log.cq_cat == '9')):
+                r_tab = test_log.assign(cq_cat_new = 'r')
+                r_tab = r_tab.loc[:,['login','qtiLabel','cq_cat_new']]
+                r_tab_list.append(r_tab)
             else:
                 last_grp = test_log.tail(1).tmp.iloc[0]
                 nine_tab = test_log.loc[test_log['tmp']==last_grp,:]
@@ -631,7 +637,7 @@ def cmc_item_create(df: object, cbk: object, domain: str) -> pd.DataFrame:
     return df
 
 def merge_participant_info(df: object, student_participants: object) -> pd.DataFrame:
-    stu_dat = student_participants.loc[~pd.isnull(student_participants['login']),['login','username','grade','gender','dob_mm','dob_yy','sen','mpop1','ppart1','isoalpha3','isoname','isocntcd','test_attendance','questionnaire_attendance']].drop_duplicates('login',keep = 'last')
+    stu_dat = student_participants.loc[~pd.isnull(student_participants['login']),['login','username','grade','gender','dob_mm','dob_yy','sen','mpop1','ppart1','isoalpha3','isoname','isocntcd','test_attendance','questionnaire_attendance','batch']].drop_duplicates('login',keep = 'last')
     stu_dat['login'] = stu_dat['login'].astype(str)
     df['login'] = df['login'].astype(str)
     df1 = df.merge(
@@ -643,6 +649,8 @@ def merge_participant_info(df: object, student_participants: object) -> pd.DataF
     df1['ppart1'] = df1['ppart1'].astype(str).apply(lambda x: re.sub(".0","",x)).replace('nan','')
     df1['mpop1'] = df1['mpop1'].astype(str).apply(lambda x: re.sub(".0","",x)).replace('nan','')
     df1['mpop1'] = df1['mpop1'].astype(str)
+
+    df1['in_cq'] = np.where(pd.isnull(df1['username']),'0',df1['in_cq'])
 
     print(f"Expected rows: {df.shape[0]}")
     print(f"Actual rows: {df1.shape[0]}")
