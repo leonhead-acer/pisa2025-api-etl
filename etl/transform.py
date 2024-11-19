@@ -58,7 +58,7 @@ def json_to_pd (filepath: str) -> pd.DataFrame:
 def explode_raw_data (df: object) -> pd.DataFrame:
     
     json_dat = pd.json_normalize(df['raw_data'],max_level = 0)
-    
+    json_dat.index = df.index
     df1 = (
         df
         .drop(columns = ['raw_data']).join(
@@ -127,7 +127,7 @@ def check_duplicates(df: object) -> pd.DataFrame:
     )
 
     if(df_cnt.shape[0] > 0):
-        df_cnt = df_cnt.drop(columns = ['count']).merge(df['login','itemId','sessionEndTime'],on = ['login','itemId'],how='outer')
+        df_cnt = df_cnt.drop(columns = ['count']).merge(df[['login','itemId','itemStartTime']],on = ['login','itemId'],how='outer')
         df_cnt['rank'] = df_cnt.groupby(['login','itemId'])['sessionEndTime'].rank(method = 'dense',ascending = False)
         df_cnt = df_cnt.loc[df_cnt['rank'] > 1,['login','itemId']]
         df_cnt['dup_std_item'] = 'duplicate'
@@ -137,6 +137,8 @@ def check_duplicates(df: object) -> pd.DataFrame:
             on = ['login','itemId'],
             how = 'left'
         )
+
+        df['dup_std_item'] = df['dup_std_item'].fillna('')
 
     else:
         df['dup_std_item'] = ''
@@ -349,6 +351,7 @@ def merge_cbk_status(df: object, cbk: object, domain: str, ams_data: object) -> 
     
     df_S = df_S.iloc[:,0:6].drop_duplicates(keep = 'first')
     df_S['login'] = df_S['login'].astype(str)
+    df_S['item_format'] = "Open response"
 
     df1 = pd.merge(
         df,
@@ -445,6 +448,7 @@ def merge_cbk_status(df: object, cbk: object, domain: str, ams_data: object) -> 
         how = 'left',
         on = ['unit_id','testQtiLabel']
     ).assign(cbk_status = 'present',domain = 'FLA-S').rename(columns = {"qtiLabel": "qtiLabel2"})
+
     df_S['in_cq'] = df_S['qtiLabel2'].apply(lambda x: '1' if pd.notnull(x) else '0')
 
     df2['cbk_status'] = df2['cbk_status'].fillna('stimulus')
@@ -485,12 +489,14 @@ def time_var_recode(df: object) -> pd.DataFrame:
 
 def score_resp_recode(df: object, domain: str) -> pd.DataFrame:
     conditions = [
+        (df['domain'] == 'FLA-S'),
         (df['db_resp']==df['db_key']) & (pd.notnull(df['db_key'])) & (pd.notnull(df['db_resp'])),
         (df['db_resp']!=df['db_key']) & (pd.notnull(df['db_key'])) & (pd.notnull(df['db_resp'])),
         df['db_key'].notna()
     ]
 
     choices = [
+        df['db_resp'],
         '1',
         '0',
         '9'
@@ -542,9 +548,7 @@ def score_resp_recode(df: object, domain: str) -> pd.DataFrame:
         "6" : "M",
     }
 
-    df['db_score_code'] = np.where((df['testQtiLabel'].str.contains('FLA\\-S')),df['db_resp'].replace(speak_recode_dict),df['db_score_code'])
-    df['score_code'] = np.where((df['testQtiLabel'].str.contains('FLA\\-S')),df['db_resp'].replace(speak_recode_dict),df['score_code'])
-    df['cq_cat'] = np.where((df['testQtiLabel'].str.contains('FLA\\-S')),df['db_resp'].replace(speak_recode_dict),df['cq_cat'])
+    df['cq_cat'] = np.where((df['testQtiLabel'].str.contains('FLA\\-S')),df['cq_score'].replace(speak_recode_dict),df['cq_cat'])
 
     if(domain == 'FLA'):
         df.rename(columns = {'qtiLabel': 'qtiLabelRemove','qtiLabel2': 'qtiLabel'},inplace=True)
@@ -670,6 +674,8 @@ def read_json_file(filepath: str) -> pd.DataFrame:
 
     finally:
         df['language'] = df['language'].apply(lambda x: x.rsplit('/', 1)[-1])
+        df = df.sort_values(by = ['login','test_qti_id','last_update_date'])
+        df = df.drop_duplicates(subset=['login','test_qti_id'],keep = 'last')
         return df
     
 def sql_query_ge(nc_dat: object,cbk: object,con) -> pd.DataFrame:
@@ -681,7 +687,7 @@ def sql_query_ge(nc_dat: object,cbk: object,con) -> pd.DataFrame:
 
     domain = 'FLA'
     if(domain == 'SCI'):
-        regex_dom = '^(S\\d|SA1).*'
+        regex_dom = r'^(S\d|SA1).*'
     elif(domain == 'FLA'):
         regex_dom = '^FLA\\-.*'
 
@@ -704,7 +710,7 @@ def sql_query_ge(nc_dat: object,cbk: object,con) -> pd.DataFrame:
                 FROM (
                     SELECT 
                         login,
-                        regexp_substr(login,'\d+') as username,
+                        regexp_substr(login,'\\d+') as username,
                         raw_data,
                         test_qti_id,
                         jsonb_object_keys(raw_data->'items') as itemId
@@ -733,7 +739,7 @@ def sql_query_ge(nc_dat: object,cbk: object,con) -> pd.DataFrame:
                 FROM (
                     SELECT 
                         login,
-                        regexp_substr(login,'\d+') as username,
+                        regexp_substr(login,'\\d+') as username,
                         raw_data,
                         test_qti_id,
                         jsonb_object_keys(raw_data->'items') as itemId
@@ -756,7 +762,8 @@ def sql_query_ge(nc_dat: object,cbk: object,con) -> pd.DataFrame:
         on = ['unit_id','resp_cat'],
         how = 'left'
     )
-    df = df.loc[~pd.isnull(df['qtiLabel2'])].rename(columns = {'qtiLabel2':'qtiLabel'}).assign(source='match')
+    
+    df = df.loc[(~pd.isnull(df['qtiLabel2'])) | (df['qtiLabel2'].str.contains("RMMB",na=False)),:].rename(columns = {'qtiLabel2':'qtiLabel'}).assign(source='match')
 
     con.close()
 
