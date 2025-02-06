@@ -288,6 +288,28 @@
 --     z.test_qti_id,
 --     z.item_id;
 
+-- with tab as (
+--     SELECT
+--         t.raw_data->'items'->itemId->>'qtiLabel' as item_id,
+--         t.itemid as clusterId
+--     FROM (
+--         SELECT 
+--             login,
+--             regexp_substr(login,'\d+') as username,
+--             raw_data,
+--             test_qti_id,
+--             jsonb_object_keys(raw_data->'items') as itemId
+--         FROM oat.delivery_results
+--         WHERE test_qti_id ~ '^FLA\-S.*'
+--     ) as t
+-- )
+-- select distinct * from tab
+-- where item_id ~ '^FLAS';
+
+select login, raw_data, test_qti_id
+from oat.delivery_results
+where login = '10560031066' and test_qti_id ~ '^FLA-S';
+
 -- SELECT login, test_qti_id, raw_data
 -- FROM oat.delivery_results
 -- WHERE
